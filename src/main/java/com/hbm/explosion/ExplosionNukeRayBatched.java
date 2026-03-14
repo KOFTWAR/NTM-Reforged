@@ -7,22 +7,19 @@ import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.phys.Vec2;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.*;
 
 /** * 处理核爆过程的工具类 (优化重制版)
- * 适配 Minecraft Forge 1.21.1
+ * 适配 Minecraft Forge 1.20.1
  */
 public class ExplosionNukeRayBatched implements IExplosionRay {
-    // 存储每个区块待处理的射线端点
     private final HashMap<ChunkPos, List<Vec3>> perChunk = new HashMap<>();
     private final List<ChunkPos> orderedChunks = new ArrayList<>();
     private final CoordComparator comparator = new CoordComparator();
-    private final BlockPos pos;       // 爆炸中心所在的位置（实体）
-    private final ChunkPos chunkPos;  // 爆炸中心所在的区块
-
+    private final BlockPos pos;
+    private final ChunkPos chunkPos;
     private final Level level;
 
     private final int strength;
@@ -31,11 +28,8 @@ public class ExplosionNukeRayBatched implements IExplosionRay {
     private final int gspNumMax;
     private int gspNum;
 
-    // 球坐标系的方位角
     private double theta;
     private double phi;
-
-    // 缓存开方计算，避免在生成点时重复计算
     private final double cachedSqrtGspNumMax;
 
     private boolean isAusf3Complete = false;
@@ -47,36 +41,27 @@ public class ExplosionNukeRayBatched implements IExplosionRay {
         this.strength = strength;
         this.radius = radius;
         this.speed = speed;
-        // Total number of points (总射线点数)
         this.gspNumMax = (int)(2.5 * Math.PI * strength * strength);
         this.cachedSqrtGspNumMax = Math.sqrt(this.gspNumMax);
         this.gspNum = 1;
-
-        // The beginning of the generalized spiral points (螺旋点起点)
         this.theta = Math.PI;
         this.phi = 0.0;
     }
 
     public void collectTip(int count) {
-        int amountProcessed = 0;
+        if (isAusf3Complete) return;
 
-        // 提取起始坐标，避免在循环中不断调用 getter
+        int amountProcessed = 0;
         final double startX = pos.getX();
         final double startY = pos.getY();
         final double startZ = pos.getZ();
-
         final int length = (int) Math.ceil(strength);
-        // 化简原代码中的 fac 计算: 100 - (i / length) * 100 乘以 0.07
-        // 7.5 - fac 可以化简为: 0.5 + 7.0 * (i / length)。这里提取步长系数以优化循环内性能
         final double stepFac = 7.0 / length;
 
-        // 使用可变坐标，极大地减少循环中 new BlockPos() 带来的 GC 开销
         BlockPos.MutableBlockPos dirPos = new BlockPos.MutableBlockPos();
-        // 存储一条射线穿过的区块，避免使用 HashSet
         List<ChunkPos> rayChunks = new ArrayList<>(8);
 
         while (this.gspNumMax >= this.gspNum) {
-            // 将球坐标方位角转换成对应直角坐标方向向量 (内联化简，去除额外的 Vec2/Vec3 对象分配)
             double dx = Math.sin(theta) * Math.cos(phi);
             double dy = Math.cos(theta);
             double dz = Math.sin(theta) * Math.sin(phi);
@@ -86,7 +71,6 @@ public class ExplosionNukeRayBatched implements IExplosionRay {
             rayChunks.clear();
             ChunkPos lastChunk = null;
 
-            // 沿着射线前进
             for (int i = 0; i < length && i < this.radius && res > 0; i++) {
                 double cx = startX + dx * i;
                 double cy = startY + dy * i;
@@ -95,21 +79,14 @@ public class ExplosionNukeRayBatched implements IExplosionRay {
                 dirPos.set((int) Math.floor(cx), (int) Math.floor(cy), (int) Math.floor(cz));
                 BlockState blockState = level.getBlockState(dirPos);
 
-                // 注意：这里移除了原代码中 level.setBlock(pos, Blocks.AIR...) 的 Bug 代码
-                // 原代码错误地将中心点(pos)不断的设置为空气导致极大卡顿，清理可替换方块的任务应由 processChunk 完成
-
-                if (!blockState.getFluidState().isEmpty() || blockState.liquid()) {
-                    // 液体不扣除阻力
-                } else {
-                    // 使用化简后的指数公式计算爆炸抗性扣除
+                // 1.20.1 修复：仅使用 getFluidState() 判断流体
+                if (blockState.getFluidState().isEmpty()) {
                     double exponent = 0.5 + i * stepFac;
                     res -= (float) Math.pow(blockState.getBlock().getExplosionResistance(), exponent);
                 }
 
                 if (res > 0 && !blockState.isAir()) {
-                    endPoint = new Vec3(cx, cy, cz); // 只在阻力耗尽或边界时保留最后的 endPoint
-
-                    // 只在跨越区块边界时才创建新的 ChunkPos 对象，效率远高于原先逐个方块加 HashSet 的做法
+                    endPoint = new Vec3(cx, cy, cz);
                     int chunkX = dirPos.getX() >> 4;
                     int chunkZ = dirPos.getZ() >> 4;
                     if (lastChunk == null || lastChunk.x != chunkX || lastChunk.z != chunkZ) {
@@ -119,39 +96,39 @@ public class ExplosionNukeRayBatched implements IExplosionRay {
                 }
             }
 
-            // 将计算出的端点分配给它穿过的所有区块
             if (endPoint != null) {
                 for (int i = 0; i < rayChunks.size(); i++) {
                     perChunk.computeIfAbsent(rayChunks.get(i), k -> new ArrayList<>()).add(endPoint);
                 }
             }
 
-            // 更新广义螺旋点
             this.generateGspUp();
 
             if (++amountProcessed >= count) {
-                return;
+                return; // 提前返回，等待下一个 Tick 继续计算
             }
         }
 
+        // 显式分离完成逻辑，防呆并提高可读性
+        completeCollection();
+    }
+
+    private void completeCollection() {
         orderedChunks.addAll(perChunk.keySet());
         orderedChunks.sort(comparator);
         isAusf3Complete = true;
     }
 
     public void processChunk() {
-        if (this.perChunk.isEmpty()) return;
+        if (this.perChunk.isEmpty() || this.orderedChunks.isEmpty()) return; // 增加 orderedChunks 空检查兜底
 
-        // 原代码用 get(0) 后 remove 会导致 ArrayList 复制数组，这里直接 remove(0) 性能更好
         ChunkPos coord = orderedChunks.remove(0);
         List<Vec3> list = perChunk.remove(coord);
         if (list == null) return;
 
-        // 使用 FastUtil 的 LongSet 代替 HashSet<BlockPos>，内存占用极低，存取速度飞快
         LongOpenHashSet toRem = new LongOpenHashSet();
         LongOpenHashSet toRemTips = new LongOpenHashSet();
 
-        // 跳过无需计算的空腔区域
         int enter = (int) (Math.min(Math.abs(pos.getX() - (coord.x << 4)), Math.abs(pos.getZ() - (coord.z << 4)))) - 16;
         enter = Math.max(enter, 0);
 
@@ -162,12 +139,10 @@ public class ExplosionNukeRayBatched implements IExplosionRay {
         final double posZ = pos.getZ();
 
         for (Vec3 triplet : list) {
-            // 原代码这里有坐标系的轻微偏差 (原点用了 getCenter() 但计算用了 getX())，这里保持原数学逻辑
             double vx = triplet.x - posCenter.x;
             double vy = triplet.y - posCenter.y;
             double vz = triplet.z - posCenter.z;
 
-            // 手动归一化，避免多余的 Vec3 对象创建
             double vecLen = Math.sqrt(vx * vx + vy * vy + vz * vz);
             vx /= vecLen;
             vy /= vecLen;
@@ -181,7 +156,6 @@ public class ExplosionNukeRayBatched implements IExplosionRay {
                 int py = (int) Math.floor(posY + vy * i);
                 int pz = (int) Math.floor(posZ + vz * i);
 
-                // 判断是否在当前区块内
                 if ((px >> 4) != coord.x || (pz >> 4) != coord.z) {
                     if (inChunk) break;
                     else continue;
@@ -199,35 +173,35 @@ public class ExplosionNukeRayBatched implements IExplosionRay {
             }
         }
 
-        // 批量移除方块
         BlockState airState = Blocks.AIR.defaultBlockState();
         LongIterator iter = toRem.iterator();
         while (iter.hasNext()) {
             long p = iter.nextLong();
-            pos1.set(p); // 将 long 还原为 MutableBlockPos 坐标
+            pos1.set(p);
             if (toRemTips.contains(p)) {
                 this.handleTip(pos1);
             } else {
-                // 标志位 2 (UPDATE_CLIENTS) | 0，符合 1.21.1 原生设置机制
-                level.setBlock(pos1, airState, 2, 0);
+                // 1.20.1 修复：恢复 3 参数签名 (Flag 2: UPDATE_CLIENTS)
+                level.setBlock(pos1, airState, 2);
             }
         }
     }
 
     protected void handleTip(BlockPos blockPos) {
+        // Flag 3: UPDATE_ALL (触发邻居更新以处理边缘物理效果)
         level.setBlock(blockPos, Blocks.AIR.defaultBlockState(), 3);
     }
 
-    // 更新方位角算法优化版
     private void generateGspUp() {
         if (this.gspNum < this.gspNumMax) {
             int k = this.gspNum + 1;
             double hk = -1.0 + 2.0 * (k - 1.0) / (this.gspNumMax - 1.0);
             this.theta = Math.acos(hk);
 
-            // 使用缓存好的 cachedSqrtGspNumMax 进行计算
             double prev_lon = this.phi;
-            double lon = prev_lon + 3.6 / cachedSqrtGspNumMax / Math.sqrt(1.0 - hk * hk);
+            // 数学优化修复：增加 max() 防止 hk 接近 1 时除以 0 导致 NaN
+            double safeSqrt = Math.sqrt(Math.max(0.000001, 1.0 - hk * hk));
+            double lon = prev_lon + 3.6 / cachedSqrtGspNumMax / safeSqrt;
             this.phi = lon % (Math.PI * 2);
         } else {
             this.theta = 0.0;
@@ -247,7 +221,6 @@ public class ExplosionNukeRayBatched implements IExplosionRay {
     public void destructionTick(int processTimeMs) {
         if (!isAusf3Complete) return;
         long start = System.currentTimeMillis();
-        // 加入了 processTimeMs 的超时保护，避免单 tick 清理过多区块导致服务器未响应
         while (!perChunk.isEmpty() && System.currentTimeMillis() < start + processTimeMs) {
             processChunk();
         }
@@ -265,7 +238,6 @@ public class ExplosionNukeRayBatched implements IExplosionRay {
         return isAusf3Complete && perChunk.isEmpty();
     }
 
-    // 比较器，用于根据到中心点的曼哈顿距离对区块排序
     public class CoordComparator implements Comparator<ChunkPos> {
         @Override
         public int compare(ChunkPos o1, ChunkPos o2) {
