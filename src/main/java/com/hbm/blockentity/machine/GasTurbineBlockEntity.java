@@ -14,6 +14,7 @@ import com.hbm.blockentity.ModBlockEntityType;
 import com.hbm.blockentity.base2.DummyableBlockEntity;
 import com.hbm.blockentity.base2.TileProxyBase;
 import com.hbm.gui.menu.GasTurbineMenu;
+import com.hbm.registries.HBMCaps;
 import com.hbm.registries.ModBlocks;
 import com.hbm.utils.multiblock.MultiblockData;
 import net.minecraft.core.BlockPos;
@@ -67,19 +68,9 @@ public class GasTurbineBlockEntity extends DummyableBlockEntity {
         FUEL_MULTIPLIER.put(ModFluids.BIOGAS.source().getId().toString(), 15D);
         FUEL_MULTIPLIER.put(ModFluids.REFORM_GAS.source().getId().toString(), 5D);
         FUEL_MULTIPLIER.put(ModFluids.DEUTERIUM.source().getId().toString(), 30D);
-        FUEL_MULTIPLIER.put(ModFluids.OIL.source().getId().toString(), 20D);
-        FUEL_MULTIPLIER.put(ModFluids.CRACK_OIL.source().getId().toString(), 22D);
-        FUEL_MULTIPLIER.put(ModFluids.PETROLEUM.source().getId().toString(), 25D);
-        FUEL_MULTIPLIER.put(ModFluids.NAPHTHA.source().getId().toString(), 22D);
-        FUEL_MULTIPLIER.put(ModFluids.DIESEL.source().getId().toString(), 30D);
-        FUEL_MULTIPLIER.put(ModFluids.DIESEL_CRACK.source().getId().toString(), 28D);
-        FUEL_MULTIPLIER.put(ModFluids.KEROSENE.source().getId().toString(), 26D);
-        FUEL_MULTIPLIER.put(ModFluids.HEATING_OIL.source().getId().toString(), 18D);
-        FUEL_MULTIPLIER.put(ModFluids.HEATING_OIL_VACUUM.source().getId().toString(), 16D);
-        FUEL_MULTIPLIER.put(ModFluids.WOOD_OIL.source().getId().toString(), 12D);
     }
 
-    private final BasicEnergyContainer energy = new BasicEnergyContainer(CAPACITY, MAX_EXTRACT, MAX_EXTRACT);
+    private final BasicEnergyContainer energy = new BasicEnergyContainer(CAPACITY, 0, MAX_EXTRACT);
     private final BasicFluidHandler fluids;
     private final ContainerData containerData;
 
@@ -105,7 +96,7 @@ public class GasTurbineBlockEntity extends DummyableBlockEntity {
         this.fluids = buildFluidHandler();
         this.capabilitiesContent.addCapability(ForgeCapabilities.FLUID_HANDLER, this.fluids);
         this.capabilitiesContent.addCapability(ForgeCapabilities.ENERGY, new com.hbm.api.energy.HybridEnergyStorage(energy));
-        this.capabilitiesContent.addCapability(com.hbm.capabilities.HBMCaps.LONG_ENERGY, new ProxyEnergyHandler(this.energy));
+        this.capabilitiesContent.addCapability(HBMCaps.LONG_ENERGY, new ProxyEnergyHandler(this.energy));
         this.multiblockData = MultiblockData.mapping.get(ModBlocks.machine_turbine_gas.get());
         this.isFormed = true;
         this.containerData = createDataSlots();
@@ -118,7 +109,7 @@ public class GasTurbineBlockEntity extends DummyableBlockEntity {
                 .addTank(16_000, Mode.INPUT)
                 .addTank(16_000, Mode.INPUT)
                 .addTank(160_000, Mode.OUTPUT);
-        handler.getFluidTanks().get(FUEL_TANK).setValidator(stack -> hasCombustibleTrait(stack));
+        handler.getFluidTanks().get(FUEL_TANK).setValidator(stack -> hasGasTrait(stack));
         handler.getFluidTanks().get(LUBE_TANK).setValidator(stack -> stack.getFluid() == ModFluids.OIL.source().get());
         handler.getFluidTanks().get(WATER_TANK).setValidator(stack -> stack.getFluid().isSame(net.minecraft.world.level.material.Fluids.WATER));
         handler.getFluidTanks().get(STEAM_TANK).setValidator(stack -> stack.getFluid() == ModFluids.HOT_STEAM.source().get());
@@ -333,15 +324,15 @@ public class GasTurbineBlockEntity extends DummyableBlockEntity {
         return FUEL_MULTIPLIER.getOrDefault(name, 5D);
     }
 
-    private boolean hasCombustibleTrait(FluidStack stack) {
-        return hasCombustibleTrait(stack.getFluid());
+    private boolean hasGasTrait(FluidStack stack) {
+        return hasGasTrait(stack.getFluid());
     }
 
-    private boolean hasCombustibleTrait(net.minecraft.world.level.material.Fluid fluid) {
+    private boolean hasGasTrait(net.minecraft.world.level.material.Fluid fluid) {
         FluidType type = fluid.getFluidType();
         if (type instanceof com.hbm.Inventory.fluid.ExtendedFluidType extended) {
             FT_Combustible trait = extended.getTrait(FT_Combustible.class);
-            return trait != null;
+            return trait != null && trait.getGrade() == FT_Combustible.FuelGrade.GAS;
         }
         return false;
     }
@@ -356,7 +347,7 @@ public class GasTurbineBlockEntity extends DummyableBlockEntity {
 
     private boolean hasAcceptableFuel() {
         FluidTank fuel = fluids.getFluidTanks().get(FUEL_TANK);
-        return !fuel.isEmpty() && hasCombustibleTrait(fuel.getFluid());
+        return !fuel.isEmpty() && hasGasTrait(fuel.getFluid());
     }
 
     private boolean hasLubricant() {
@@ -513,7 +504,7 @@ public class GasTurbineBlockEntity extends DummyableBlockEntity {
                 proxy.capabilitiesContent.addCapability(cap, new VisitRestrictWrapper(fluids, false, STEAM_TANK), directions);
                 return;
             }
-        } else if (cap == ForgeCapabilities.ENERGY || cap == com.hbm.capabilities.HBMCaps.LONG_ENERGY) {
+        } else if (cap == ForgeCapabilities.ENERGY || cap == HBMCaps.LONG_ENERGY) {
             if (offset.equals(new Vec3i(0, 1, -1))) {
                 proxy.capabilitiesContent.addCapability(cap, proxyCap(cap), directions);
                 return;
@@ -531,7 +522,7 @@ public class GasTurbineBlockEntity extends DummyableBlockEntity {
         if (cap == ForgeCapabilities.ENERGY) {
             return new com.hbm.api.energy.HybridEnergyStorage(energy);
         }
-        if (cap == com.hbm.capabilities.HBMCaps.LONG_ENERGY) {
+        if (cap == HBMCaps.LONG_ENERGY) {
             return new ProxyEnergyHandler(energy);
         }
         return null;

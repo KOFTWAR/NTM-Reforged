@@ -1,10 +1,10 @@
 package com.hbm.utils.multiblock;
 
 import com.hbm.block.HBMMachine;
-import com.hbm.block.machine.BlockAssembler;
+import com.hbm.blockentity.ModBlockEntityType;
 import com.hbm.blockentity.base2.DummyableBlockEntity;
 import com.hbm.blockentity.base2.TileProxyBase;
-import com.hbm.capabilities.HBMCaps;
+import com.hbm.registries.HBMCaps;
 import com.hbm.registries.ModBlocks;
 import com.hbm.utils.DirectionUtils;
 import net.minecraft.core.BlockPos;
@@ -19,7 +19,6 @@ import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
-import org.apache.logging.log4j.core.Core;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
@@ -41,6 +40,7 @@ public class MultiblockData {
         mapping.put(ModBlocks.bomb_fat_man.get(), new MultiblockData(1,0,0,1,1,1));
         mapping.put(HBMMachine.LAUNCH_PAD.get(), new MultiblockData(0, 0, 1, 1, 1, 1));
         mapping.put(ModBlocks.machine_rbmk_base.get(), new MultiblockData(0,0,0,0,0,0));
+        mapping.put(ModBlocks.machine_rbmk_console.get(), new MultiblockData(3, 0, 2, 2, 1, 1));
         mapping.put(ModBlocks.machine_cracking_tower.get(), new MultiblockData(0, 0, 3, 3, 2, 3)
                 .addCap(new Vec3i(0, 0, -2), ForgeCapabilities.FLUID_HANDLER, SOUTH)
                 .addCap(new Vec3i(2, 0, 0), ForgeCapabilities.FLUID_HANDLER, EAST)
@@ -100,6 +100,10 @@ public class MultiblockData {
         mapping.put(ModBlocks.machine_research_reactor.get(), new MultiblockData(2, 0, 0, 0, 0, 0));
         mapping.put(ModBlocks.machine_reactor_breeding.get(), new MultiblockData(2, 0, 0, 0, 0, 0));
         mapping.put(ModBlocks.SPACE_STATION_BASE.get(), new MultiblockData(1, 0, 2, 2, 2, 2));
+        mapping.put(ModBlocks.HEATER_FIREBOX.get(), new MultiblockData(0, 0, 1, 1, 1, 1));
+        mapping.put(ModBlocks.machine_crucible.get(), new MultiblockData(1, 0, 1, 1, 1, 1).setInvGeneral(true));
+        mapping.put(ModBlocks.machine_rbmk_crane_console.get(), new MultiblockData(1, 0, 2, 1, 1, 1));
+        mapping.put(ModBlocks.machine_rbmk_autoloader.get(), new MultiblockData(8, 0, 0, 0, 0, 0));
     }
 
     MultiblockData(List<Vec3i> offsets, int[] dirOffsets){
@@ -115,8 +119,8 @@ public class MultiblockData {
      * */
     public List<Vec3i> offsets;
     public int[] dirOffsets;
-//    public Map<Capability<?>,List<Tuple<Vec3i, Direction>>> beforeTrans = new IdentityHashMap<>();
     public Map<Vec3i, Map<Capability<?>, Set<Direction>>> capsMap = new HashMap<>();
+    private boolean inventoryGeneral = false;       // 是否让机器所有方块都有收发物品的能力，原版hbm中太多机器直接让所有方块都具有物品能力，一个个记录方块太麻烦。
 
     public MultiblockData addCap(Vec3i offset, Capability<?> cap, @Nullable Direction ... directions){
         capsMap.computeIfAbsent(offset, pos -> new HashMap<>()).computeIfAbsent(cap, capability -> new HashSet<>());
@@ -152,6 +156,10 @@ public class MultiblockData {
         }
         return this;
     }
+    private MultiblockData setInvGeneral(boolean inventoryGeneral){
+        this.inventoryGeneral = inventoryGeneral;
+        return this;
+    }
     public List<Tuple<BlockPos, Direction>> getCapLocation(Capability<?> cap, BlockPos corePos, Direction facing){
         List<Tuple<BlockPos, Direction>> list = new ArrayList<>();
         for (Map.Entry<Vec3i, Map<Capability<?>, Set<Direction>>> entry : capsMap.entrySet()) {
@@ -175,6 +183,15 @@ public class MultiblockData {
                 be.getLevel().updateNeighborsAt(dummyableTile.getBlockPos(), dummyableTile.getBlockState().getBlock());
             }
         });
+        if (inventoryGeneral){
+            be.getCapability(ForgeCapabilities.ITEM_HANDLER).ifPresent(iItemHandler -> {
+                for (Vec3i offset : DirectionUtils.offsetRot(offsets, SOUTH, facing)) {
+                    level.getBlockEntity(be.getBlockPos().offset(offset), ModBlockEntityType.PROXY_ENTITY.get()).ifPresent(tileProxyCombo -> {
+                        tileProxyCombo.capabilitiesContent.addCapability(ForgeCapabilities.ITEM_HANDLER, iItemHandler);
+                    });
+                }
+            });
+        }
     }
 
     /** 工具函数，用于计算立方体型空间的偏移量

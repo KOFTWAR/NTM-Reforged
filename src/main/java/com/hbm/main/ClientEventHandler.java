@@ -2,6 +2,7 @@ package com.hbm.main;
 
 import com.hbm.HBM;
 import com.hbm.Inventory.fluid.ModFluids;
+import com.hbm.block.interfaces.ILookOverlay;
 import com.hbm.blockentity.ModBlockEntityType;
 import com.hbm.config.ConfigLBSM;
 import com.hbm.dim.orbit.SpaceSpecialEffects;
@@ -25,7 +26,6 @@ import com.hbm.render.entity.effect.EntityTorexRender;
 import com.hbm.render.entity.effect.RenderMeteor;
 import com.hbm.render.entity.missile.MissileTaintRenderer;
 import com.hbm.render.entity.mob.GlyphidRender;
-import com.hbm.render.entity.projectile.RenderRubble;
 import com.hbm.render.item.SpecialItemRender;
 import com.hbm.render.model.Models;
 import com.hbm.render.model.engine.CustomPartsModel;
@@ -34,21 +34,36 @@ import com.hbm.render.overlay.AtomicFlashOverlay;
 import com.hbm.render.overlay.DebugTagOverlay;
 import com.hbm.render.pipeline.GeoRenderPipeline;
 import com.hbm.settings.tooltip.TooltipRegistries;
+import com.hbm.utils.WorldUtils;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.MenuScreens;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.BlockEntityWithoutLevelRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderers;
 import net.minecraft.client.renderer.entity.EntityRenderers;
 import net.minecraft.client.renderer.entity.ThrownItemRenderer;
 import net.minecraft.client.renderer.item.ItemProperties;
+import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.Tag;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.client.event.*;
+import net.minecraftforge.client.gui.overlay.VanillaGuiOverlay;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import net.minecraftforge.fml.event.lifecycle.FMLLoadCompleteEvent;
+
+import java.util.List;
 
 //@Mod.EventBusSubscriber(modid = HBM.MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
 @OnlyIn(Dist.CLIENT)
@@ -73,6 +88,7 @@ public class ClientEventHandler {
         forgeBus.addListener(AtomicFlashOverlay::onGuiRender);
         forgeBus.addListener(DebugTagOverlay::onGuiRender);
         forgeBus.addListener(TooltipRegistries::onTooltip);
+        forgeBus.addListener(ClientEventHandler::onRenderGUIOverlay);
     }
     @SubscribeEvent
     public static void onClientSetup(FMLClientSetupEvent event)
@@ -104,10 +120,11 @@ public class ClientEventHandler {
             MenuScreens.register(ModMenuType.ICF_PRESS_MENU.get(), ICFPressScreen::new);
             MenuScreens.register(ModMenuType.RESEARCH_REACTOR_MENU.get(), ResearchReactorScreen::new);
             MenuScreens.register(ModMenuType.BREEDER_REACTOR_MENU.get(), BreederReactorScreen::new);
+            MenuScreens.register(ModMenuType.MENU_FIREBOX.get(), GuiFirebox::new);
+            MenuScreens.register(ModMenuType.MENU_CRUCIBLE.get(), GuiCrucible::new);
             //方块实体渲染
             BlockEntityRenderers.register(ModBlockEntityType.PRESS_ENTITY.get(), PressRenderer::new);
             BlockEntityRenderers.register(ModBlockEntityType.ASSEMBLER_ENTITY.get(), AssemblerRenderer::new);
-            BlockEntityRenderers.register(ModBlockEntityType.CRUCIBLE_ENTITY.get(), CrucibleRenderer::new);
             BlockEntityRenderers.register(ModBlockEntityType.NUKE_BOMB_FAT_ENTITY.get(), NukeFatRender::new);
             BlockEntityRenderers.register(ModBlockEntityType.NUKE_BOMB_BOY_ENTITY.get(), NukeBoyRender::new);
             BlockEntityRenderers.register(ModBlockEntityType.NUKE_BOMB_CUSTOM_ENTITY.get(), NukeCustomRender::new);
@@ -119,6 +136,9 @@ public class ClientEventHandler {
             BlockEntityRenderers.register(ModBlockEntityType.BREEDER_REACTOR_ENTITY.get(), ctx -> new BreederReactorRenderer());
             BlockEntityRenderers.register(ModBlockEntityType.TILE_SPACE_STATION.get(), SpaceStationRender::new);
             BlockEntityRenderers.register(ModBlockEntityType.TILE_CONNECTOR.get(), ConnectorRender::new);
+            BlockEntityRenderers.register(ModBlockEntityType.TILE_FIREBOX.get(), RendererFirebox::new);
+            BlockEntityRenderers.register(ModBlockEntityType.CRUCIBLE_ENTITY.get(), CrucibleRenderer::new);
+            BlockEntityRenderers.register(ModBlockEntityType.TILE_FOUNDRY_MOLD.get(), RenderFoundryMold::new);
             //实体渲染
             EntityRenderers.register(ModEntityType.TEST_ENTITY.get(), TestEntityRenderer::new);
             EntityRenderers.register(ModEntityType.ENTITY_GRENADE_GENETIC.get(), ThrownItemRenderer::new);
@@ -132,7 +152,6 @@ public class ClientEventHandler {
             EntityRenderers.register(ModEntityType.ENTITY_MISSILE_TEST.get(), MissileTaintRenderer::new);
             EntityRenderers.register(ModEntityType.GLYPHID.get(), GlyphidRender::new);
             EntityRenderers.register(ModEntityType.ENTITY_METEOR.get(), RenderMeteor::new);
-            EntityRenderers.register(ModEntityType.ENTITY_RUBBLE.get(), RenderRubble::new);
 
             RenderUtils.init();
             // 物品属性，用于贴图变化
@@ -230,5 +249,49 @@ public class ClientEventHandler {
     @SubscribeEvent
     public static void registerGeometryLoaders(ModelEvent.RegisterGeometryLoaders event){
         event.register("multi_parts_obj", CustomPartsModel.Loader.INSTANCE);
+        event.register("door", CustomPartsModel.Loader.INSTANCE);
+        event.register("advanced_assembly_machine_loader", CustomPartsModel.Loader.INSTANCE);
+    }
+
+    @SubscribeEvent
+    public static void onRenderGUIOverlay(RenderGuiOverlayEvent.Post event){
+        Minecraft mc = Minecraft.getInstance();
+        ClientLevel level = mc.level;
+        LocalPlayer player = mc.player;
+        if (level == null || player == null || mc.screen != null) return;
+
+        if (event.getOverlay() == VanillaGuiOverlay.CROSSHAIR.type()){
+            HitResult hitResult = mc.hitResult;
+            if (hitResult != null) {
+                if (hitResult.getType() == HitResult.Type.BLOCK){
+                    ItemStack itemInHand;
+                    BlockState aimBlockState;
+                    // 3. 计算屏幕中心位置
+                    int screenWidth = mc.getWindow().getGuiScaledWidth();
+                    int screenHeight = mc.getWindow().getGuiScaledHeight();
+                    // 准星正中心是 (screenWidth / 2, screenHeight / 2)
+                    // 我们向右下方偏移 12 像素
+
+                    BlockPos blockPos = WorldUtils.blockPos(hitResult.getLocation());
+                    if (!(itemInHand = player.getMainHandItem()).isEmpty() && itemInHand.getItem() instanceof ILookOverlay lookOverlay){
+                        lookOverlay.printHook(level, blockPos);
+                    }else if ((aimBlockState = level.getBlockState(blockPos)).getBlock() instanceof ILookOverlay lookOverlay){
+                        GuiGraphics graphics = event.getGuiGraphics();
+                        List<Component> desc = lookOverlay.getDesc(level, blockPos);
+//                        graphics.renderComponentTooltip(mc.font, desc, renderX, renderY);
+                        int fontHeight = mc.font.lineHeight;
+                        int lineSpace = 2;  // 暂时把间距设为固定值
+                        int renderX = screenWidth / 2 + 12;
+                        int renderY = screenHeight / 2 - desc.size() / 2 * (lineSpace + fontHeight);
+                        for (Component component : desc) {
+                            graphics.drawString(mc.font, component.getVisualOrderText(), renderX, renderY, 0xFFFFFF);
+                            renderY += fontHeight + lineSpace;
+                        }
+                    }
+                }
+            }else if (hitResult.getType() == HitResult.Type.ENTITY){
+
+            }
+        }
     }
 }

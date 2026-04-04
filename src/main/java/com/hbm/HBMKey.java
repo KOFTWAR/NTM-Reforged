@@ -1,5 +1,6 @@
 package com.hbm;
 
+import com.google.common.base.Strings;
 import net.minecraftforge.registries.ForgeRegistries;
 
 //mod使用的key，仅用于mod内使用，不用于翻译
@@ -21,6 +22,7 @@ public class HBMKey {
     public static final String MODEL_STANDALONE = "model_standalone";
     public static final String MODEL_DIFURNACE = "model_difurnace";
     public static final String MODEL_HORIZONTAL_WITH_FILE = "model_horizontal_with_file";
+    public static final String MODEL_EXISTING = "model_existing";
 
     public static final String LITERALLY = "literally";
     public static final String ORDERLY_GEN = "orderly_gen";
@@ -30,7 +32,6 @@ public class HBMKey {
     public static final String DROP_SELF = "drop_self";
     public static final String DROP_NONE = "drop_none";
     public static final String DROP_STANDALONE = "drop_standalone";
-    public static final String DROP_NO_EXIST = "drop_no_exist";
     public static final String SHREDDER = "shredder";
     // key relate to capability
     public static final String DATA = "hbmdata";
@@ -88,6 +89,60 @@ public class HBMKey {
     public static final String BLAST = "blast";
     public static final String ASSEMBLER = "assembler";
     public static final String CHEMPLANT = "chemplant";
-    //
+    // tag
+    public static final String NUGGETS = "nuggets";
+    public static final String INGOTS = "ingots";
+    public static final String DUSTS = "dusts";
+    public static final String SMALL_DUSTS = "small_dusts";
+    public static final String GEMS = "gems";
+    public static final String CRYSTALS = "crystals";
+    public static final String PLATES = "plates";
+    public static final String CAST_PLATES = "cast_plates";
+    public static final String BILLETS = "billets";
+    public static final String STORAGE_BLOCKS = "storage_blocks";
+    public static final String ORES = "ores";
+    public static final String WIRE = "wire";
 
+    public static final String IRON = "iron";
+    public static final String TIN = "tin";
+    public static final String STEEL = "steel";
+    public static final String URANIUM = "uranium";
+    public static final String TITANIUM = "titanium";
+    public static final String ALUMINIUM = "aluminium";
+    public static final String LEAD = "lead";
+    public static final String QUARTZ = "quartz";
+    public static final String LAPIS = "lapis_lazuli";
+    public static final String DIAMOND = "diamond";
+    public static final String EMERALD = "emerald";
+    public static final String BIOMASS = "biomass";
+    public static final String COKE = "coke";
+    public static final String COAL = "coal";
+    public static final String LIGNITE = "lignite";
+    public static final String SAWDUST = "sawdust";
+    public static final String COPPER = "copper";
+    public static final String RED_COPPER = "red_copper";
+    public static final String GOLD = "gold";
+    public static final String TUNGSTEN = "tungsten";
+    public static final String ADVANCED_ALLOY = "advanced_alloy";
+    public static final String CARBON = "carbon";
+    public static final String SCHRABIDIUM = "schrabidium";
+    public static final String ZINC = "zinc";
+    public static final String MAGNETIZED_TUNGSTEN = "magnetized_tungsten";
+
+    // GUI
+    public static final String BTN = "btn";
+    public static final String CLICK = "click";
+
+    public static String link(String ... strings){
+        return link('/', strings);
+    }
+    public static String link(char separator, String ... strings){
+        if (strings.length == 0) return "";
+        if (strings.length == 1) return strings[0];
+        StringBuilder sb = new StringBuilder(strings[0]);
+        for (int i = 1; i < strings.length; i++) {
+            sb.append(separator).append(strings[i]);
+        }
+        return sb.toString();
+    }
 }

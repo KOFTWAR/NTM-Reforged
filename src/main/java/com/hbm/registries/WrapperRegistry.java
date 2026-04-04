@@ -1,13 +1,18 @@
 package com.hbm.registries;
 
+import com.hbm.HBM;
 import com.hbm.HBMKey;
 import com.hbm.datagen.LanguageProvider;
 import com.hbm.datagen.loot.BlockLootGen;
 import com.hbm.datagen.model.BlockStateGen;
 import com.hbm.datagen.model.ItemModelGen;
+import com.hbm.datagen.tag.BlockTagsGen;
+import com.hbm.datagen.tag.ItemTagsGen;
 import net.minecraft.data.loot.BlockLootSubProvider;
+import net.minecraft.data.tags.ItemTagsProvider;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.Item;
@@ -21,6 +26,9 @@ import net.minecraftforge.event.BuildCreativeModeTabContentsEvent;
 import net.minecraftforge.registries.RegistryObject;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -48,6 +56,7 @@ public class WrapperRegistry<T> implements Supplier<T>{
         ResourceKey<CreativeModeTab> creativeKey;
         String genModelWay = HBMKey.BASIC_MODEL;
         Consumer<ItemModelGen> modelFactory;
+        List<TagKey<Item>> tags;
         public void languageSupport(LanguageProvider provider){
             switch (genNameWay){
                 case HBMKey.LITERALLY -> provider.add(get(), localizedName);
@@ -86,6 +95,13 @@ public class WrapperRegistry<T> implements Supplier<T>{
                 }
             }
         }
+
+        public void tagSupport(ItemTagsGen provider){
+            if (this.tags == null || this.tags.isEmpty()) return;
+            for (TagKey<Item> tag : this.tags) {
+                provider.tag(tag).add(registryObject.get());
+            }
+        }
     }
 
     private static abstract class Builder<T>{
@@ -109,6 +125,7 @@ public class WrapperRegistry<T> implements Supplier<T>{
         // 动态物品模型参数
         String propertyName;
         Supplier<Boolean> condition;
+        List<TagKey<Item>> tags;
         public ItemBuilder(String name, Supplier<? extends Item> sup) {
             super(name, sup);
         }
@@ -144,13 +161,16 @@ public class WrapperRegistry<T> implements Supplier<T>{
             this.genNameWay = genNameWay;
             return this;
         }
-
+        @SafeVarargs
+        public final ItemBuilder tags(TagKey<Item>... itemTags){
+            if (itemTags.length > 0){
+                this.tags = Arrays.stream(itemTags).toList();
+            }
+            return this;
+        }
         @Override
         public RegistryObject<Item> build() {
-            RegistryObject<Item> existing = ModItems.ITEMS.getEntries().stream()
-                    .filter(entry -> entry.getId().getPath().equals(name))
-                    .findFirst()
-                    .orElse(null);
+            RegistryObject<Item> existing = findExistingItem(name);
             if (existing != null) {
                 return existing;
             }
@@ -160,10 +180,22 @@ public class WrapperRegistry<T> implements Supplier<T>{
             itemRegistry.genModelWay = genModelWay;
             itemRegistry.genNameWay = genNameWay;
             itemRegistry.modelFactory = modelGen;
+            itemRegistry.tags = tags;
             if (itemRegistry.genNameWay!= null && itemRegistry.genNameWay.equals(HBMKey.LITERALLY) && localizedName!=null)
                 itemRegistry.localizedName = localizedName;
             ModItems.itemList.add(itemRegistry);
             return itemRegistry.registryObject;
+        }
+
+        private static RegistryObject<Item> findExistingItem(String name) {
+            ResourceLocation id = new ResourceLocation(HBM.MODID, name);
+            for (RegistryObject<Item> entry : ModItems.ITEMS.getEntries()) {
+                ResourceLocation entryId = entry.getId();
+                if (id.equals(entryId)) {
+                    return entry;
+                }
+            }
+            return null;
         }
     }
 
@@ -172,6 +204,7 @@ public class WrapperRegistry<T> implements Supplier<T>{
         String genModelWay = HBMKey.MODEL_CUBE_ALL;
         String lootWay = HBMKey.DROP_SELF;
         BiConsumer<Block, BlockStateGen> modelFactory;
+        List<TagKey<Block>> tags;
         public void languageSupport(LanguageProvider provider){
             switch (genNameWay){
                 case HBMKey.LITERALLY -> provider.add(get(), localizedName);
@@ -198,6 +231,7 @@ public class WrapperRegistry<T> implements Supplier<T>{
                     provider.logBlock((RotatedPillarBlock) get());
                     provider.simpleBlockItem(get(), new ModelFile.UncheckedModelFile(provider.key(get()).withPrefix("block/")));
                 }
+                case HBMKey.MODEL_EXISTING -> provider.simpleBlockWithItem(get(), provider.genBuiltInModelFile(get(), "existing"));
 //                case HBMKey.MODEL_FRONT_SIDE -> provider.frontSideBlockWithItem(get());
 //                case HBMKey.MODEL_FRONT_SIDE_TOP -> provider.frontSideTopBlockWithItem(get());
 //                case HBMKey.MODEL_DIFURNACE -> provider.difuranceBlockWithItem(get());
@@ -212,13 +246,14 @@ public class WrapperRegistry<T> implements Supplier<T>{
             switch (lootWay){
                 case HBMKey.DROP_SELF -> provider.dropSelf(registryObject.get());
                 case HBMKey.DROP_NONE -> provider.add(registryObject.get(), BlockLootSubProvider.noDrop());
-                // 没有掉落物表用这个
-                case HBMKey.DROP_NO_EXIST -> {
-                    return;
-                }
             }
         }
-
+        public void tagSupport(BlockTagsGen blockTagsGen){
+            if (this.tags == null) return;
+            for (TagKey<Block> tag : this.tags) {
+                blockTagsGen.tag(tag).add(get());
+            }
+        }
     }
 
     public static class BlockBuilder extends Builder<Block>{
@@ -228,6 +263,7 @@ public class WrapperRegistry<T> implements Supplier<T>{
         ResourceKey<CreativeModeTab> creativeKey;
         BiConsumer<Block, BlockStateGen> modelGen;
         Function<Block, BlockItem> blockItem;
+        List<TagKey<Block>> tags;
         public BlockBuilder(String name, Supplier<? extends Block> sup) {
             super(name, sup);
         }
@@ -263,6 +299,15 @@ public class WrapperRegistry<T> implements Supplier<T>{
             return this;
         }
 
+        @SafeVarargs
+        public final BlockBuilder tags(TagKey<Block>... blockTags){
+            if (blockTags.length > 0){
+                if (this.tags == null) this.tags = new ArrayList<>();
+                this.tags.addAll(Arrays.stream(blockTags).toList());
+            }
+            return this;
+        }
+
         @Override
         public RegistryObject<Block> build() {
             WrappedBlockRegistry blockRegistry = new WrappedBlockRegistry();
@@ -273,6 +318,7 @@ public class WrapperRegistry<T> implements Supplier<T>{
             blockRegistry.genNameWay = genNameWay;
             blockRegistry.modelFactory = modelGen;
             blockRegistry.lootWay = lootWay;
+            blockRegistry.tags = tags;
             if (blockRegistry.genNameWay!= null && blockRegistry.genNameWay.equals(HBMKey.LITERALLY) && localizedName!=null)
                 blockRegistry.localizedName = localizedName;
             ModBlocks.blockList.add(blockRegistry);
