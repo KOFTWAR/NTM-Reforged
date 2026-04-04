@@ -1,6 +1,7 @@
 package com.hbm.render.overlay;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.util.Mth;
@@ -55,6 +56,11 @@ public final class AtomicFlashOverlay {
             return;
         }
         GuiGraphics graphics = event.getGuiGraphics();
+        PoseStack poseStack = graphics.pose();
+
+        poseStack.pushPose();
+        poseStack.setIdentity();
+
         int width = event.getWindow().getGuiScaledWidth();
         int height = event.getWindow().getGuiScaledHeight();
         int color = ((int) (alpha * 255.0F) << 24) | 0x00FFFFFF;
