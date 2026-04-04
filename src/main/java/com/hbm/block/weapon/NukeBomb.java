@@ -62,11 +62,11 @@ public abstract class NukeBomb extends BlockDummyable implements IBomb {
             return;
         }
         Vec3 center = pos.getCenter();
-//        switch (getExplosionVisual()) {
-//            case ATOMIC -> AtomicExplosionHelper.triggerEffects(level, center);
-//            case THERMOBARIC -> ThermobaricExplosionHelper.triggerEffects(level, center);
-//            case NONE -> { }
-//        }
+        switch (getExplosionVisual()) {
+            case ATOMIC -> AtomicExplosionHelper.triggerEffects(level, center);
+            case THERMOBARIC -> ThermobaricExplosionHelper.triggerEffects(level, center);
+            case NONE -> { }
+        }
     }
 
     protected enum ExplosionVisual {

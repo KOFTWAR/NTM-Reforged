@@ -239,6 +239,12 @@ public class EntityNukeTorex extends Entity {
         return 1.0D;
     }
 
+    //修复超出渲染距离会停止渲染的BUG
+    @Override
+    public boolean shouldRender(double pX, double pY, double pZ) {
+        return true;  // 始终渲染
+    }
+
     @Override
     @OnlyIn(Dist.CLIENT)
     public boolean shouldRenderAtSqrDistance(double pDistance) {

@@ -304,9 +304,9 @@ public class ClientEventHandler {
     public static void onRenderGUI(RenderGuiOverlayEvent.Pre event) {
 //        //检查是否在渲染物品栏
 //        //ClientConfig.NUKE_HUD_SHAKE.get() 我暂时没研究配置文件有关的代码，先不加了
-//        if(event.getOverlay() == VanillaGuiOverlay.HOTBAR.type() && (AtomicShakeOverlay.shakeTimestamp + AtomicShakeOverlay.shakeDuration - System.currentTimeMillis()) > 0 ) {
-//            AtomicShakeOverlay.trigger(event);
-//        }
+        if(event.getOverlay() == VanillaGuiOverlay.HOTBAR.type() && (AtomicShakeOverlay.shakeTimestamp + AtomicShakeOverlay.shakeDuration - System.currentTimeMillis()) > 0 ) {
+            AtomicShakeOverlay.trigger(event);
+        }
     }
 }
 
