@@ -1,7 +1,9 @@
 package com.hbm.network.packet.toclient;
 
 import com.hbm.render.overlay.AtomicFlashOverlay;
+import net.minecraft.client.Minecraft;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.chat.Component;
 import net.minecraftforge.network.NetworkEvent;
 
 import java.util.function.Supplier;

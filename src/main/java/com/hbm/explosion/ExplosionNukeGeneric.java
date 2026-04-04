@@ -1,7 +1,10 @@
 package com.hbm.explosion;
 
+import com.hbm.entity.effect.EntityNukeTorex;
+import com.hbm.entity.logic.EntityNukeExplosionMK5;
 import net.minecraft.world.damagesource.DamageSources;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
@@ -25,12 +28,16 @@ public class ExplosionNukeGeneric {
             if(dist <= radius) {
                 Vec3 eyePosition = entity.getEyePosition();
                 if (!isExplosionExempt(entity) && isObstructed(level,pos,eyePosition)){
-                    double damage = maxDamage * (radius - dist) / radius;
-                    //生物受伤，原版是注册了了一个radiation的伤害源，这里暂时以generic代替
-                    entity.hurt(level.damageSources().generic(),(float) damage);
-                    entity.setSecondsOnFire(5);
-                    Vec3 knock = eyePosition.subtract(pos).normalize().scale(0.2D);
-                    entity.addDeltaMovement(knock);
+                   if (entity instanceof Player || entity instanceof EntityNukeExplosionMK5 || entity instanceof EntityNukeTorex) {
+                       double damage = maxDamage * (radius - dist) / radius;
+                       //生物受伤，原版是注册了了一个radiation的伤害源，这里暂时以generic代替
+                       entity.hurt(level.damageSources().generic(),(float) damage);
+                       entity.setSecondsOnFire(5);
+                       Vec3 knock = eyePosition.subtract(pos).normalize().scale(0.2D);
+                       entity.addDeltaMovement(knock);
+                   } else {
+                       entity.kill();
+                   }
                 }
             }
         }

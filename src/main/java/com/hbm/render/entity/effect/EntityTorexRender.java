@@ -2,6 +2,7 @@ package com.hbm.render.entity.effect;
 
 import com.hbm.HBM;
 import com.hbm.entity.effect.EntityNukeTorex;
+import com.hbm.render.overlay.AtomicShakeOverlay;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.*;
 import net.minecraft.client.Camera;
@@ -35,6 +36,17 @@ public class EntityTorexRender extends EntityRenderer<EntityNukeTorex> {
     @Override
     public void render(EntityNukeTorex pEntity, float pEntityYaw, float pPartialTick, PoseStack pPoseStack, MultiBufferSource pBuffer, int pPackedLight) {
         pPoseStack.pushPose();
+
+        //物品栏摇晃的实现
+        //pEntity.didPlaySound 这玩意为什么一直是False？？？
+        if (!pEntity.didShake && System.currentTimeMillis() - AtomicShakeOverlay.shakeTimestamp > 1_000) {
+            AtomicShakeOverlay.shakeTimestamp = System.currentTimeMillis();
+            pEntity.didShake = true;
+            Player player = Minecraft.getInstance().player;
+            assert player != null;
+            player.hurtTime = 15;          // 爆炸时的视角晃动
+            player.hurtDuration = 15;
+        }
 //        cloudletWrapper(pEntity,pPoseStack,pBuffer, pPartialTick);
 //        if(pEntity.tickCount < 101) flashWrapper(pEntity, interp);
 //        if(pEntity.tickCount < 10 && System.currentTimeMillis() - ModEventHandlerClient.flashTimestamp > 1_000) ModEventHandlerClient.flashTimestamp = System.currentTimeMillis();
@@ -44,7 +56,7 @@ public class EntityTorexRender extends EntityRenderer<EntityNukeTorex> {
 //            EntityPlayer player = MainRegistry.proxy.me();
 //            player.hurtTime = 15;
 //            player.maxHurtTime = 15;
-//            player.attackedAtYaw = 0F;
+//            player.attackedAtYaw = 0F; 在新版这个变量是protected的，叫做hurtDir。这个功能控制的是核弹爆炸的时候视角会摇晃一下。这串代码在1.7.10的HBM其实无效，因为HurtDir在1.19.4前一直是坏的(MC-26678)
 //        }
         pPoseStack.popPose();
         super.render(pEntity, pEntityYaw, pPartialTick, pPoseStack, pBuffer, pPackedLight);

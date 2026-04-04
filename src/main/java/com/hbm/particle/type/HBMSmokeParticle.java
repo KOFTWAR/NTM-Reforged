@@ -65,7 +65,7 @@ public class HBMSmokeParticle extends TextureSheetParticle {
 
     @Override
     public Particle scale(float pScale) {
-        return super.scale(pScale*0.2F);
+        return super.scale(pScale* 2.3F);
     }
 
     @OnlyIn(Dist.CLIENT)

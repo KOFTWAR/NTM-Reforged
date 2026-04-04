@@ -31,10 +31,12 @@ import com.hbm.render.model.Models;
 import com.hbm.render.model.engine.CustomPartsModel;
 import com.hbm.render.model.entity.TestEntityModel;
 import com.hbm.render.overlay.AtomicFlashOverlay;
+import com.hbm.render.overlay.AtomicShakeOverlay;
 import com.hbm.render.overlay.DebugTagOverlay;
 import com.hbm.render.pipeline.GeoRenderPipeline;
 import com.hbm.settings.tooltip.TooltipRegistries;
 import com.hbm.utils.WorldUtils;
+import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -89,6 +91,7 @@ public class ClientEventHandler {
         forgeBus.addListener(DebugTagOverlay::onGuiRender);
         forgeBus.addListener(TooltipRegistries::onTooltip);
         forgeBus.addListener(ClientEventHandler::onRenderGUIOverlay);
+        forgeBus.addListener(ClientEventHandler::onRenderGUI);
     }
     @SubscribeEvent
     public static void onClientSetup(FMLClientSetupEvent event)
@@ -292,6 +295,19 @@ public class ClientEventHandler {
             }else if (hitResult.getType() == HitResult.Type.ENTITY){
 
             }
+
         }
+
+    }
+
+    @SubscribeEvent
+    public static void onRenderGUI(RenderGuiOverlayEvent.Pre event) {
+//        //检查是否在渲染物品栏
+//        //ClientConfig.NUKE_HUD_SHAKE.get() 我暂时没研究配置文件有关的代码，先不加了
+//        if(event.getOverlay() == VanillaGuiOverlay.HOTBAR.type() && (AtomicShakeOverlay.shakeTimestamp + AtomicShakeOverlay.shakeDuration - System.currentTimeMillis()) > 0 ) {
+//            AtomicShakeOverlay.trigger(event);
+//        }
     }
 }
+
+
